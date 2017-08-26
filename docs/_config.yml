@@ -16,15 +16,14 @@
 title: JobWrangler
 email: tsombrero@gmail.com
 description: > # this means to ignore newlines until "baseurl:"
-  JobWrangler wrangles your "jobs" into "corrals" and feeds them "corn".
-baseurl: "" # the subpath of your site, e.g. /blog
-url: "" # the base hostname & protocol for your site, e.g. http://example.com
-twitter_username: jekyllrb
-github_username:  jekyll
+  JobWrangler wrangles your "jobs" into "corrals" with "lassos" and feeds them "corn". Not really.
+baseurl: "jobwrangler" # the subpath of your site, e.g. /blog
+url: "https://tsombrero.github.io" # the base hostname & protocol for your site, e.g. http://example.com
+github_username:  tsombrero
 
 # Build settings
 markdown: kramdown
-theme: minima
+theme: jekyll-theme-cayman
 plugins:
   - jekyll-feed
 
