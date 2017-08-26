@@ -182,12 +182,12 @@ public class PhotoServiceClientJobs {
         }
     }
 
-    public static class UploadPhotoToAlbumJob extends PhotoAlbumDependingJob {
+    public static class AddPhotoToAlbumJob extends PhotoAlbumDependingJob {
 
         JobObserver uploadPhotoJobObserver;
         PhotoServiceModel.Photo addedPhoto;
 
-        public UploadPhotoToAlbumJob(String photo, String albumName) {
+        public AddPhotoToAlbumJob(String photo, String albumName) {
             super(albumName);
             addedPhoto = new PhotoServiceModel.Photo(null, photo);
         }

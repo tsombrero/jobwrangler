@@ -51,17 +51,15 @@ public abstract class Job<T> extends Dependable {
         this.scheduledFuture = scheduledFuture;
     }
 
-    public boolean isDependingOn(DependableId id) {
-        return getDependedDependables().containsKey(id);
+    public boolean isDependingOn(Dependable dependable) {
+        return getDependedDependables().containsKey(dependable);
     }
 
     ArrayList<Job> getDependedJobs() {
         ArrayList<Job> jobs = new ArrayList<>();
-        for (DependableId dependedJobId : getDependedDependables().keySet()) {
-            if (dependedJobId instanceof JobId) {
-                Job dependedJob = getJobManager().getJob(dependedJobId);
-                if (dependedJob != null)
-                    jobs.add(dependedJob);
+        for (Dependable dependedJob : getDependedDependables().keySet()) {
+            if (dependedJob instanceof Job) {
+                jobs.add((Job) dependedJob);
             }
         }
         return jobs;
@@ -69,13 +67,6 @@ public abstract class Job<T> extends Dependable {
 
     void serviceJobOnCompletion(Job dependingJob) {
         dependingJobsWaiting.add(dependingJob);
-    }
-
-    /**
-     * @return True if the job has been submitted
-     */
-    public boolean isInitialized() {
-        return getJobManager() != null;
     }
 
     public Job getAssimilatedBy() {
@@ -174,9 +165,9 @@ public abstract class Job<T> extends Dependable {
             if (jobManager == null)
                 throw new NullPointerException("JobManager cannot be null");
 
-            for (DependableId dependableId : getDependedDependables().keySet()) {
-                if (jobManager.getDependable(dependableId) == null) {
-                    throw new Dependable.DependencyException("Unresolved Dependency : " + dependableId);
+            for (Dependable dependable : getDependedDependables().keySet()) {
+                if (!dependable.isInitialized()) {
+                    throw new Dependable.DependencyException("Unresolved Dependency : " + dependable);
                 }
             }
 
@@ -272,8 +263,8 @@ public abstract class Job<T> extends Dependable {
     }
 
     private State getAggregateStateOfDepended() {
-        for (Map.Entry<DependableId, DependencyFailureStrategy> entry : getDependedDependables().entrySet()) {
-            Dependable depended = getJobManager().getDependable(entry.getKey());
+        for (Map.Entry<Dependable, DependencyFailureStrategy> entry : getDependedDependables().entrySet()) {
+            Dependable depended = entry.getKey();
             if (depended != null) {
                 if (depended.getState() == State.FAULTED) {
                     if (entry.getValue() == DependencyFailureStrategy.CASCADE_FAILURE) {
@@ -331,7 +322,7 @@ public abstract class Job<T> extends Dependable {
                     Job.this.stateMessage = newStateMessage;
 
                     Log.d("Job " + Job.this + " " + " (was " + oldState
-                            + (!Utils.isEmpty(oldStateMessage) ? "" : " / " + oldStateMessage)
+                            + (Utils.isEmpty(oldStateMessage) ? "" : " / " + oldStateMessage)
                             + ")");
 
                     recordStateTransitionDuration(oldState, newState);
@@ -580,6 +571,7 @@ public abstract class Job<T> extends Dependable {
         return getState();
     }
 
+    private String className;
     /**
      * Override to provide a friendly description of this Job for logging purposes.
      *
@@ -587,8 +579,6 @@ public abstract class Job<T> extends Dependable {
      * <p>
      * see toString()
      */
-    private String className;
-
     public String getDescription() {
         if (className == null) {
             className = getClass().getName().substring(getClass().getName().lastIndexOf(".") + 1);
@@ -735,7 +725,7 @@ public abstract class Job<T> extends Dependable {
      * @param assimilating The surviving job
      */
     protected void onJobAssimilated(Job assimilating, Job assimilated) {
-        DependencyFailureStrategy dependencyMode = getDependedDependables().get(assimilated.getId());
+        DependencyFailureStrategy dependencyMode = getDependedDependables().get(assimilated);
         if (dependencyMode != null)
             addDepended(assimilating, dependencyMode);
     }
@@ -821,7 +811,7 @@ public abstract class Job<T> extends Dependable {
      */
     protected State onDependencyFailed(Dependable failedDependency) {
         if (!getState().isTerminal()
-                && getDependedDependables().get(failedDependency.getId()) == DependencyFailureStrategy.CASCADE_FAILURE) {
+                && getDependedDependables().get(failedDependency) == DependencyFailureStrategy.CASCADE_FAILURE) {
             Log.d("Ending job %s because it depends on %s", toString(), failedDependency.toString());
             return State.FAULTED;
         }

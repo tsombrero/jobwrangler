@@ -66,7 +66,7 @@ public class PhotoServiceTest {
     @Test
     public void testUploadPhotoToNewAlbum() {
         JobObserver job =
-                jobManager.submit(new UploadPhotoToAlbumJob("foto", "foo"));
+                jobManager.submit(new AddPhotoToAlbumJob("foto", "foo"));
 
         Assert.assertEquals(State.SUCCEEDED, job.waitForTerminalState(5000, TimeUnit.MILLISECONDS));
         assertServiceAndUiCompare();
@@ -112,7 +112,7 @@ public class PhotoServiceTest {
         List<JobObserver> jobList = new ArrayList<>();
 
         for (int i = 0; i < photoCount; i++) {
-            jobList.add(jobManager.submit(new UploadPhotoToAlbumJob("pic:" + i, "album:" + (i % numAlbums))));
+            jobList.add(jobManager.submit(new AddPhotoToAlbumJob("pic:" + i, "album:" + (i % numAlbums))));
         }
 
         for (JobObserver job : jobList) {
@@ -134,7 +134,7 @@ public class PhotoServiceTest {
         List<JobObserver> jobList = new ArrayList<>();
 
         for (int i = 0; i < photoCount; i++) {
-            jobList.add(jobManager.submit(new UploadPhotoToAlbumJob("pic:" + i, "album:" + (i % numAlbums))));
+            jobList.add(jobManager.submit(new AddPhotoToAlbumJob("pic:" + i, "album:" + (i % numAlbums))));
         }
 
         int succeeded = 0;

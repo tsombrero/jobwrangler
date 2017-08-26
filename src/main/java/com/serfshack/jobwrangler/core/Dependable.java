@@ -16,7 +16,7 @@ public abstract class Dependable {
     final ReentrantLock lock = new ReentrantLock();
     private JobManager jobManager;
 
-    private ConcurrentHashMap<DependableId, DependencyFailureStrategy> dependedDependables = new ConcurrentHashMap<>();
+    private ConcurrentHashMap<Dependable, DependencyFailureStrategy> dependedDependables = new ConcurrentHashMap<>();
     private DependableId id;
 
     Dependable(DependableId id) {
@@ -32,7 +32,7 @@ public abstract class Dependable {
      *
      * @return A map of ID's to DependencyFailureStrategy values;
      */
-    Map<DependableId, DependencyFailureStrategy> getDependedDependables() {
+    Map<Dependable, DependencyFailureStrategy> getDependedDependables() {
         try {
             return new HashMap<>(dependedDependables);
         } catch (Throwable t) {
@@ -128,21 +128,20 @@ public abstract class Dependable {
             if (jobManager == null)
                 return;
 
-            for (DependableId dependableId : dependedDependables.keySet()) {
-                cycleCheck(dependableId, jobManager);
+            for (Dependable dependable : dependedDependables.keySet()) {
+                cycleCheck(dependable, jobManager);
             }
         } finally {
             lock.unlock();
         }
     }
 
-    private void cycleCheck(DependableId dependedId, JobManager jobManager) {
-        Dependable depended = jobManager.getDependable(dependedId);
+    private void cycleCheck(Dependable depended, JobManager jobManager) {
         if (depended != null) {
             if (depended.getDependingMode(this) != null)
                 throw new DependencyCycleException(this, depended);
 
-            for (DependableId indirectDepended : depended.getDependedDependables().keySet()) {
+            for (Dependable indirectDepended : depended.getDependedDependables().keySet()) {
                 cycleCheck(indirectDepended, jobManager);
             }
         }
@@ -189,6 +188,13 @@ public abstract class Dependable {
     }
 
     /**
+     * @return True if the job has been submitted
+     */
+    public boolean isInitialized() {
+        return getJobManager() != null;
+    }
+
+    /**
      * Add a hard dependency with the CASCADE_FAILURE DependencyFailureStrategy.
      *
      * @param dependable The depended
@@ -203,32 +209,37 @@ public abstract class Dependable {
     /**
      * Add a dependency with the specified DependencyFailureStrategy.
      *
-     * @param dependable The depended
+     * @param depended The depended
      * @param inheritFailure The DependencyFailureStrategy to apply. Overwrites any
      *                       existing DependencyFailureStrategy.
      *
      * @throws DependencyCycleException Adding this dependency would create a cycle
      * @throws IllegalStateException The proposed dependency is not active in the JobManager
      */
-    public void addDepended(Dependable dependable, DependencyFailureStrategy inheritFailure) {
-        DependableId dependedId = dependable.getId();
+    public void addDepended(Dependable depended, DependencyFailureStrategy inheritFailure) {
+        DependableId dependedId = depended.getId();
 
         if (dependedId.equals(getId()))
             throw new DependencyCycleException(getId(), getId());
 
-        if (jobManager != null && jobManager.getDependable(dependedId) == null)
-            throw new DependencyException("Depended job [" + dependable + "] is not active");
+        if (depended.getState() == State.ASSIMILATED && depended instanceof Job) {
+            addDepended(((Job)depended).getAssimilatedBy(), inheritFailure);
+            return;
+        }
 
-        Log.d("isDependingOn: " + this + " depends on " + dependable);
+        if (jobManager != null && jobManager.getDependable(dependedId) == null)
+            throw new DependencyException("Depended job [" + depended + "] is not active");
+
+        Log.d("isDependingOn: " + this + " depends on " + depended);
 
         lock.lock();
         try {
             try {
-                dependedDependables.put(dependedId, inheritFailure);
+                dependedDependables.put(depended, inheritFailure);
                 cycleCheck();
             } catch (DependencyCycleException e) {
                 dependedDependables.remove(dependedId);
-                Log.w(e, "Failed setting " + this + " depends on " + dependable);
+                Log.w(e, "Failed setting " + this + " depends on " + depended);
                 throw e;
             }
         } finally {

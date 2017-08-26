@@ -21,7 +21,7 @@ public class ConcurrencyPolicyTest {
         assertFalse(job1.getRunPolicy().getConcurrencyPolicy().equals(new FIFOPolicy("foo", "bar")));
         assertFalse(job1.getRunPolicy().getConcurrencyPolicy().equals(new SingletonPolicyKeepExisting("foo")));
         job1.getRunPolicy().getConcurrencyPolicy().onCollision(job1, job2);
-        assertTrue(job2.getDependedDependables().containsKey(job1.getId()));
+        assertTrue(job2.getDependedDependables().containsKey(job1));
         assertTrue(job1.getDependedDependables().isEmpty());
     }
 

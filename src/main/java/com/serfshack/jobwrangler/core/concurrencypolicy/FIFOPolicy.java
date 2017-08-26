@@ -17,7 +17,7 @@ public class FIFOPolicy extends AbstractConcurrencyPolicy {
 
     @Override
     public void onCollision(Job existing, Job candidate) {
-        if (!candidate.isDependingOn(existing.getId()))
+        if (!candidate.isDependingOn(existing))
            candidate.addDepended(existing, Dependable.DependencyFailureStrategy.IGNORE_FAILURE);
     }
 }
