@@ -2,6 +2,7 @@ package com.serfshack.jobwrangler.photoservice;
 
 
 import com.serfshack.jobwrangler.core.*;
+import com.serfshack.jobwrangler.core.concurrencypolicy.FIFOPolicy;
 import com.serfshack.jobwrangler.core.concurrencypolicy.SingletonPolicyKeepExisting;
 import com.serfshack.jobwrangler.util.Log;
 
@@ -39,7 +40,7 @@ public class PhotoServiceClientJobs {
         @Override
         protected RunPolicy configureRunPolicy() {
             return RunPolicy.newLimitAttemptsPolicy(20)
-                    .withConcurrencyPolicy(new SingletonPolicyKeepExisting("CreatePhotoAlbumJob", albumname))
+                    .withConcurrencyPolicy(new FIFOPolicy("CreatePhotoAlbumJob", albumname))
                     .build();
         }
 

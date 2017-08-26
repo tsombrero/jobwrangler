@@ -25,6 +25,10 @@ public class JobManager {
     private long jobServiceThreadId = -1;
     private ScheduledThreadPoolExecutor jobServiceExecutor;
 
+    public JobManager() {
+        this(null);
+    }
+
     /**
      * Constructor
      *

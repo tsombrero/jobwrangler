@@ -9,9 +9,4 @@ public abstract class SimpleJob extends Job<Boolean> {
     protected Boolean getResult() {
         return true;
     }
-
-    @Override
-    protected RunPolicy configureRunPolicy() {
-        return RunPolicy.newLimitAttemptsPolicy().build();
-    }
 }

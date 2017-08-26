@@ -51,6 +51,11 @@ public class PhotoServiceTest {
         job2.waitForTerminalState(100, TimeUnit.MILLISECONDS);
         assertEquals(albumUri, mockPhotoAppUi.getAlbum("foo").getPhotoAlbumUri());
         assertServiceAndUiCompare();
+
+
+        JobObserver<PhotoServiceModel.PhotoAlbum> job3 =
+                jobManager.submit(new CreatePhotoAlbumJob("asdfadsf"));
+        job3.subscribeOnComplete(job1 -> System.out.println("The result is: " + job1.getResult()));
     }
 
     @Test

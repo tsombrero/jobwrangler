@@ -186,7 +186,9 @@ public abstract class Job<T> extends Dependable {
      * @return A new RunPolicy to be applied to the job. Called once as part of initializing
      * the job, or as part of inflating a persisted job as the RunPolicy itself is not persisted.
      */
-    protected abstract RunPolicy configureRunPolicy();
+    protected RunPolicy configureRunPolicy() {
+        return RunPolicy.newLimitAttemptsPolicy().build();
+    }
 
     /**
      * Determine if it's safe to remove a Job from the graph. Some jobs may want to
@@ -693,7 +695,7 @@ public abstract class Job<T> extends Dependable {
     // common overrides:
 
     /**
-     * Callback. Called once when the Job is submitted. Useful for writing a local representation
+     * Callback, called once when the Job is submitted. Useful for writing a local representation
      * of the job to any UI or database.
      * <p>
      * Called from the main Job Service thread. Avoid blocking operations.
@@ -706,7 +708,7 @@ public abstract class Job<T> extends Dependable {
     }
 
     /**
-     * Callback. Called after any new job has been successfully added to the JobManager.
+     * Callback, called after any new job has been successfully added to the JobManager.
      * <p>
      * Called from the main Job Service thread. Avoid blocking operations.
      *
@@ -718,7 +720,7 @@ public abstract class Job<T> extends Dependable {
     }
 
     /**
-     * Callback. Called after any other job gets assimilated. This takes care of removing the
+     * Callback, called after any other job gets assimilated. This takes care of removing the
      * assimilated job from the job's dependencies and replacing it with the assimilating one.
      *
      * @param assimilated  The job moved to the ASSIMILATED state
@@ -731,7 +733,7 @@ public abstract class Job<T> extends Dependable {
     }
 
     /**
-     * Callback. Called after any state transition, so getState() will return the new state.
+     * Callback, called after any state transition, so getState() will return the new state.
      * <p>
      * Called from the main Job Service thread. Avoid blocking operations.
      *
@@ -741,7 +743,7 @@ public abstract class Job<T> extends Dependable {
     }
 
     /**
-     * Callback. Called when the Job's RunPolicy and dependencies allow this job to
+     * Callback, called when the Job's RunPolicy and dependencies allow this job to
      * proceed to the READY state. This lets the job do any other last-minute checks
      * before proceeding. A call to doWork() is always gated by a call
      * to onPrepare().
@@ -761,7 +763,7 @@ public abstract class Job<T> extends Dependable {
     }
 
     /**
-     * Callback. Called when onPrepare() has returned READY. The Job's main work
+     * Callback, called when onPrepare() has returned READY. The Job's main work
      * is done here.
      * <p>
      * While doWork() is running, the job will be in the BUSY state.
@@ -781,7 +783,7 @@ public abstract class Job<T> extends Dependable {
     abstract protected State doWork();
 
     /**
-     * Callback. Called periodically while the Job is in the BUSY state. This is
+     * Callback, called periodically while the Job is in the BUSY state. This is
      * useful when doWork() has started some asynchronous operation. In that case
      * checkProgress() is called on a backoff schedule as allowed by the RunPolicy.
      * <p>
@@ -801,7 +803,7 @@ public abstract class Job<T> extends Dependable {
     }
 
     /**
-     * Callback. Called when a depended Job has faulted.
+     * Callback, called when a depended Job has faulted.
      * <p>
      * Called from the main Job Service thread. Avoid blocking operations.
      *
@@ -819,7 +821,7 @@ public abstract class Job<T> extends Dependable {
     }
 
     /**
-     * Callback. Called when this job has been successfully added and subsequently moves to
+     * Callback, called when this job has been successfully added and subsequently moves to
      * a FAULTED or CANCELED state. May be used to clean up things that were added in
      * onAdded().
      * <p>
@@ -829,7 +831,7 @@ public abstract class Job<T> extends Dependable {
     }
 
     /**
-     * Callback. Called when this Job's ConcurrencyPolicy has collided with another one,
+     * Callback, called when this Job's ConcurrencyPolicy has collided with another one,
      * and this Job wins. Override this method so the surviving job to takes on the redundant
      * job's work as necessary. Handy for use in throttling/debouncing schemes.
      * <p>

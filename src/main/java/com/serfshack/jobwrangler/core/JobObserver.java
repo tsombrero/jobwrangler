@@ -12,7 +12,8 @@ import java.util.concurrent.TimeUnit;
 
 public class JobObserver<T> {
     private final Job<T> job;
-    private HashMap<Callback<Job<T>>, ExecutorService> listeners;
+    private HashMap<OnUpdateCallback<Job<T>>, ExecutorService> onUpdateListeners;
+    private HashMap<OnCompleteCallback<Job<T>>, ExecutorService> onCompletelisteners;
     private static ExecutorService defaultExecutor;
     private static final Object executorSync = new Object();
     private final Object sync = new Object();
@@ -93,8 +94,8 @@ public class JobObserver<T> {
         return job.getResultBlocking(t, timeUnit);
     }
 
-    public JobObserver<T> subscribe(Callback<Job<T>> callback) {
-        if (callback == null)
+    public JobObserver<T> subscribe(OnUpdateCallback<Job<T>> onUpdateCallback) {
+        if (onUpdateCallback == null)
             return this;
 
         if (defaultExecutor == null) {
@@ -104,26 +105,51 @@ public class JobObserver<T> {
             }
         }
 
-        return subscribe(callback, defaultExecutor);
+        return subscribe(onUpdateCallback, defaultExecutor);
     }
 
     /**
      * Subscribe to events from this JobObserver
      *
-     * @param callback The Callback implementation
-     * @param executorService The executor to handle the callback, or null to use the default executor.
+     * @param onUpdateCallback The OnUpdateCallback implementation
+     * @param executorService The executor to handle the onCompleteCallback, or null to use the default executor.
      *
      * @return The JobObserver
      */
-    public JobObserver<T> subscribe(Callback<Job<T>> callback, ExecutorService executorService) {
-        if (callback == null)
+    public JobObserver<T> subscribe(OnUpdateCallback<Job<T>> onUpdateCallback, ExecutorService executorService) {
+        if (onUpdateCallback == null)
             return this;
 
         synchronized (sync) {
-            if (listeners == null)
-                listeners = new HashMap<>();
+            if (onUpdateListeners == null)
+                onUpdateListeners = new HashMap<>();
 
-            listeners.put(callback, executorService);
+            onUpdateListeners.put(onUpdateCallback, executorService);
+            return this;
+        }
+    }
+
+    public JobObserver<T> subscribeOnComplete(OnCompleteCallback<Job<T>> onCompleteCallback) {
+        return subscribeOnComplete(onCompleteCallback, null);
+    }
+
+    /**
+     * Subscribe to events from this JobObserver
+     *
+     * @param onCompleteCallback The OnCompleteCallback implementation
+     * @param executorService The executor to handle the onCompleteCallback, or null to use the default executor.
+     *
+     * @return The JobObserver
+     */
+    public JobObserver<T> subscribeOnComplete(OnCompleteCallback<Job<T>> onCompleteCallback, ExecutorService executorService) {
+        if (onCompleteCallback == null)
+            return this;
+
+        synchronized (sync) {
+            if (onUpdateListeners == null)
+                onUpdateListeners = new HashMap<>();
+
+            onCompletelisteners.put(onCompleteCallback, executorService);
             return this;
         }
     }
@@ -131,33 +157,33 @@ public class JobObserver<T> {
     /**
      * Notify callbacks
      *
-     * @param key An informational key passed through to the callback along with the Job.
+     * @param key An informational key passed through to the onCompleteCallback along with the Job.
      */
     public void notifyUpdate(int key) {
-        Set<Map.Entry<Callback<Job<T>>, ExecutorService>> entries;
+        Set<Map.Entry<OnUpdateCallback<Job<T>>, ExecutorService>> entries;
 
         synchronized (sync) {
-            if (listeners == null)
+            if (onUpdateListeners == null)
                 return;
 
-            entries = listeners.entrySet();
+            entries = onUpdateListeners.entrySet();
         }
 
-        for (Map.Entry<Callback<Job<T>>, ExecutorService> entry : entries) {
+        for (Map.Entry<OnUpdateCallback<Job<T>>, ExecutorService> entry : entries) {
             try {
                 if (entry.getKey() != null && entry.getValue() != null)
-                    entry.getValue().submit(new CallbackTask(entry.getKey(), job, key));
+                    entry.getValue().submit(new OnUpdateCallbackTask(entry.getKey(), job, key));
             } catch (Throwable t) {
                 Log.e(t);
             }
         }
     }
 
-    public interface Callback<S extends Job> {
+    public interface OnUpdateCallback<S extends Job> {
         /**
-         * Callback interface for the JobObserver. This is called whenever Job.notifyUpdate() is called.
+         * OnUpdateCallback interface for the JobObserver. This is called whenever Job.notifyUpdate() is called.
          *
-         * The default behavior is to tickle this callback when the job state changes. If no executor
+         * The default behavior is to tickle this onCompleteCallback when the job state changes. If no executor
          * has been specified, a default SingleThreadExecutor will be used. The default executor is shared
          * among all job observers.
          *
@@ -168,13 +194,25 @@ public class JobObserver<T> {
         void onUpdate(S job, int key);
     }
 
-    private class CallbackTask implements Callable<Void> {
-        private final Callback<Job<T>> callback;
+    public interface OnCompleteCallback<S extends Job> {
+        /**
+         * OnCompleteCallback interface for the JobObserver. This is called once when the job reaches a terminal state.
+         *
+         * If no executor has been specified, a default SingleThreadExecutor will be used. The default
+         * executor is shared among all job observers.
+         *
+         * @param job The job on which notifyUpdate() was called
+         */
+        void onComplete(S job);
+    }
+
+    private class OnUpdateCallbackTask implements Callable<Void> {
+        private final OnUpdateCallback<Job<T>> onUpdateCallback;
         private final Job<T> job;
         private final int key;
 
-        CallbackTask(Callback<Job<T>> callback, Job<T> job, int key) {
-            this.callback = callback;
+        OnUpdateCallbackTask(OnUpdateCallback<Job<T>> onUpdateCallback, Job<T> job, int key) {
+            this.onUpdateCallback = onUpdateCallback;
             this.job = job;
             this.key = key;
         }
@@ -182,7 +220,27 @@ public class JobObserver<T> {
         @Override
         public Void call() throws Exception {
             try {
-                callback.onUpdate(job, key);
+                onUpdateCallback.onUpdate(job, key);
+            } catch (Throwable t) {
+                Log.e(t);
+            }
+            return null;
+        }
+    }
+
+    private class OnCompleteCallbackTask implements Callable<Void> {
+        private final OnCompleteCallback<Job<T>> onCompleteCallback;
+        private final Job<T> job;
+
+        OnCompleteCallbackTask(OnCompleteCallback<Job<T>> onCompleteCallback, Job<T> job) {
+            this.onCompleteCallback = onCompleteCallback;
+            this.job = job;
+        }
+
+        @Override
+        public Void call() throws Exception {
+            try {
+                onCompleteCallback.onComplete(job);
             } catch (Throwable t) {
                 Log.e(t);
             }
