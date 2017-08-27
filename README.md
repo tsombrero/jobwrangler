@@ -6,6 +6,12 @@ JobWrangler is a job execution library along the lines of the [iOS OperationQueu
 - Dependency enforcement, strong or weak (see DependencyFailureStrategy)
 - Singleton jobs (see ConcurrencyPolicy)
 - Throttled jobs that accumulate work
+- Persisted jobs that survive application restart
+
+That lets you focus on the bits that must be explicitly implemented:
+- Update the local model as needed to reflect the action taking place (e.g. update the UI as if the Job has already succeeded)
+- Perform the actual work
+- Success/Failure handling
 
 ## Example: A Photo Sharing Service
 
@@ -14,14 +20,6 @@ Let's say you're implementing a client for photo sharing service. It's a very si
 - Create a photo album
 - Add a stored photo to a photo album
 
-Each job has responsibilities that must be explicitly implemented:
-- Update the local model as needed to reflect the action taking place (e.g. show an "uploading" indicator)
-- Perform the actual work of uploading
-- Update the local model when work is complete
-- On failure, roll back the local model
-
-
-## Basic Jobs
 Let's start with a basic job to upload a photo:
 
 ### Upload Photo Job:
