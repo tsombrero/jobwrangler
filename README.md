@@ -1,5 +1,7 @@
 # JobWrangler
 
+[JavaDoc](https://tsombrero.github.io/jobwrangler/apidocs/).
+
 JobWrangler is a job execution library along the lines of the [iOS OperationQueue](https://developer.apple.com/documentation/foundation/operationqueue) and the excellent [Android Priority JobQueue](https://github.com/yigit/android-priority-jobqueue). JobWrangler builds upon the concept of the Job-as-a-state-machine with dynamic inter-job dependency chains and other handy orchestration features. For example, Jobs get the following for free, or with minimal configuration:
 - Limited retries and exponential backoff (see RunPolicy)
 - Defer work until gating conditions are met (e.g. network availability)
@@ -121,7 +123,7 @@ A Job can have at most one `ConcurrencyPolicy` and zero or more `GatingCondition
 ### Gating Conditions
 
 A [GatingCondition](https://tsombrero.github.io/jobwrangler/apidocs/com/serfshack/jobwrangler/core/GatingCondition.html) is a
-way of temporarily benching a Job. The most obvious use case for this is network connectivity. Creating a GatingCondition is easy:
+way of temporarily benching a Job. The most obvious use case for this is to avoid churn while waiting for network connectivity. Creating a GatingCondition is easy:
 
 ```java
 static class SimpleGatingCondition implements GatingCondition {
@@ -136,13 +138,13 @@ static class SimpleGatingCondition implements GatingCondition {
     }
 }
 ```
-Just implement the interface and add your `GatingCondition` class via `RunPolicy.Builder.withGatingCondition()`.
+Just implement the interface and add your `GatingCondition` class via `RunPolicy.Builder.withGatingCondition()`. The Job will remain in the `WAIT` state without burning any retry attempts until the condition is satisfied.
 
 ### Concurrency Policy
 
 A RunPolicy may have a [ConcurrencyPolicy](https://tsombrero.github.io/jobwrangler/apidocs/com/serfshack/jobwrangler/core/concurrencypolicy/AbstractConcurrencyPolicy.html) that governs how it coexists with other jobs with the same policy. This is how Singleton Jobs are enforced for example.
 
-When a Job is submitted, and before it is added, its ConcurrencyPolicy is compared with that of other running Jobs. If a running Job has a matching ConcurrencyPolicy the jobs are said to collide and the earlier job's ConcurrencyPolicy resolves the conflict. This may mean canceling one job or the other, setting up a dependency relationship, consolidating work into a single job, etc.
+When a Job is submitted, and before it is added, its ConcurrencyPolicy is compared with that of other running Jobs. If a running Job has a matching ConcurrencyPolicy the jobs are said to collide and the running job's ConcurrencyPolicy resolves the conflict. This may mean canceling either job, setting up a dependency relationship, consolidating work into a single job, or something else.
 
 There are three built-in `ConcurrencyPolicy` implementations:
 ##### SingletonPolicyKeepExisting
@@ -164,7 +166,3 @@ ensures that photo uploads are handled sequentially and not in parallel. The str
 
 ## Persistence
 
-## State Flow
-![State Flow Image](https://github.com/tsombrero/jobwrangler/blob/master/docs/res/Screenshot%202017-08-26%2013.01.33.png)
-
-Documentation is forthcoming but check out the [JavaDoc](https://tsombrero.github.io/jobwrangler/apidocs/).
