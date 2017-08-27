@@ -22,64 +22,62 @@ Let's start with a basic job to upload a photo. Jobs are generics of their resul
 ### Upload Photo Job:
 
 ```java
-    public static class UploadPhotoJob extends Job<URI> {
-        private final String photo;
+public static class UploadPhotoJob extends Job<URI> {
+    private final String photo;
 
-        public UploadPhotoJob(String photo) {
-            this.photo = photo;
-        }
-
-        @Override
-        public State onAdded() {
-            System.out.println("Uploading the photo");
-            return State.READY;
-        }
-
-        @Override
-        public State doWork() {
-            // Potentially long-running network operation, adding the photo to storage
-            URI photoUri = myRemoteService.uploadPhoto(photo);
-
-            if (photoUri != null) {
-                // Success! Set the job's result and return.
-                setResult(photoUri);
-                return State.SUCCEEDED;
-            }
-
-            // We did not succeed this time but willing to give it another go.
-            return State.READY;
-        }
+    public UploadPhotoJob(String photo) {
+        this.photo = photo;
     }
+
+    @Override
+    public State onAdded() {
+        System.out.println("Uploading the photo");
+        return State.READY;
+    }
+
+    @Override
+    public State doWork() {
+        // Potentially long-running network operation, adding the photo to storage
+        URI photoUri = myRemoteService.uploadPhoto(photo);
+
+        if (photoUri != null) {
+            // Success! Set the job's result and return.
+            setResult(photoUri);
+            return State.SUCCEEDED;
+        }
+
+        // We did not succeed this time but willing to give it another go.
+        return State.READY;
+    }
+}
 ```
 
 To execute the job, you would do something like this:
 
 ```java
-    // Note, in real life the JobManager should be a singleton
-    JobManager jobManager = new JobManager();
-    jobManager.submit(new UploadPhotoJob(thePhoto));
+// Note, in real life the JobManager should be a singleton
+JobManager jobManager = new JobManager();
+jobManager.submit(new UploadPhotoJob(thePhoto));
 ```
 
 The first callback is `onAdded()` which means the Job has been submitted and accepted by the JobManager. This callback happens only once regardless of retries, so it's a good place to update the UI to reflect what's going on (e.g. show a progress bar, or show the added photo in a list).
 
 The second callback is `doWork()` which is where the long-running work of uploading the photo happens. This callback represents an attempt and may be retried if there's a problem.
 
-Jobs are state machines-- `onAdded()` and `doWork()` are state transition callbacks used by the JobManager to handle a particular state and transition to the next one. They optimistically return the next state for the Job. The returned state will be validated against other factors (retry limits etc) by the JobManager and applied.
+Jobs are state machines-- `onAdded()` and `doWork()` are state transition callbacks used by the JobManager to handle a particular state and transition to the next one. They optimistically return the next state for the Job. The returned state will be validated against other factors (retry limits etc) by the JobManager and applied. If a state transition callback returns a terminal state like `SUCCESS` or `FAULTED`, the job will move to that terminal state.
 
 For more on Job state flow, see the Diagram below and the javadoc for the [Job class](https://tsombrero.github.io/jobwrangler/apidocs/com/serfshack/jobwrangler/core/Job.html) and [State enum](https://tsombrero.github.io/jobwrangler/apidocs/com/serfshack/jobwrangler/core/State.html)  
 <img width="300" src="https://github.com/tsombrero/jobwrangler/blob/master/docs/res/Screenshot%202017-08-26%2013.01.33.png" align="center">
 
-Now let's take a look at how to get the job's result.
-
 ## JobObserver
-The JobObserver is how you keep track of ongoing jobs and get results when they're finished. JobObserver is a generic of the same type as the Job it is observing. In this example `UploadPhotoJob extends Job<URI>` so the JobObserver is a `JobObserver<URI>`.
+The `JobObserver` is how you keep track of ongoing jobs and get results when they're finished. `JobObserver` is a generic class of the same type as the `Job` it is observing. In this example `UploadPhotoJob extends Job<URI>` so the JobObserver is a `JobObserver<URI>`.
 
 A Job's result can be fetched either with blocking calls or through a subscription model.
 
 The blocking method:
 ```java
-    JobObserver<URI> uploadPhotoObserver = jobManager.submit(new UploadPhotoJob(thePhoto));
-    Photo photo = uploadPhotoObserver.getResultBlocking(30, TimeUnit.SECONDS);
+JobObserver<URI> uploadPhotoObserver = jobManager.submit(new UploadPhotoJob(thePhoto));
+Photo photo = uploadPhotoObserver.getResultBlocking(30, TimeUnit.SECONDS);
 ```
 The call to get the result will block until the Job terminates or until the specified timeout. 
 
@@ -99,24 +97,24 @@ When a Job is initialized it always calls `configureRunPolicy()` once so it know
 For example:
 
 ```java
-    @Override
-    protected RunPolicy configureRunPolicy() {
-        return RunPolicy.newLimitAttemptsPolicy(20)
-                .withAttemptTimeout(30, TimeUnit.SECONDS)
-                .withJobTimeout(3, TimeUnit.MINUTES)
-                .withExponentialBackoff(1, 10, TimeUnit.SECONDS)
-                .withConcurrencyPolicy(new FIFOPolicy("uploadphoto"))
-                .withGatingCondition(new NetworkConnectivityCondition())
-                .build();
-    }
+@Override
+protected RunPolicy configureRunPolicy() {
+    return RunPolicy.newLimitAttemptsPolicy(20)
+            .withAttemptTimeout(30, TimeUnit.SECONDS)
+            .withJobTimeout(3, TimeUnit.MINUTES)
+            .withExponentialBackoff(1, 10, TimeUnit.SECONDS)
+            .withConcurrencyPolicy(new FIFOPolicy("uploadphoto"))
+            .withGatingCondition(new NetworkConnectivityCondition())
+            .build();
+}
 ```
 
-RunPolicy objects are created using a Builder pattern. See the [JavaDoc](https://tsombrero.github.io/jobwrangler/apidocs/com/serfshack/jobwrangler/core/RunPolicy.Builder.html) for details.
+RunPolicy objects are created using a Builder pattern. In this case we start with a canned `RunPolicy.Builder` via [newLimitAttemptsPolicy](https://tsombrero.github.io/jobwrangler/apidocs/com/serfshack/jobwrangler/core/RunPolicy.html#newLimitAttemptsPolicy-int-) and build upon it. See the [JavaDoc](https://tsombrero.github.io/jobwrangler/apidocs/com/serfshack/jobwrangler/core/RunPolicy.Builder.html) for details.
 
 You may have noticed these guys:
 ```java
-                    .withConcurrencyPolicy(new FIFOPolicy("uploadphoto"))
-                    .withGatingCondition(new NetworkConnectivityCondition())
+            .withConcurrencyPolicy(new FIFOPolicy("uploadphoto"))
+            .withGatingCondition(new NetworkConnectivityCondition())
 ```
 A Job can have at most one `ConcurrencyPolicy` and zero or more `GatingCondition`s.
 
@@ -126,35 +124,43 @@ A [GatingCondition](https://tsombrero.github.io/jobwrangler/apidocs/com/serfshac
 way of temporarily benching a Job. The most obvious use case for this is network connectivity. Creating a GatingCondition is easy:
 
 ```java
-    static class SimpleGatingCondition implements GatingCondition {
-        @Override
-        public boolean isSatisfied() {
-            return YourNetworkManager.isNetworkAvailable();
-        }
-
-        @Override
-        public String getMessage() {
-            return isSatisfied() ? "Network is available" : "Cannot continue, no network";
-        }
+static class SimpleGatingCondition implements GatingCondition {
+    @Override
+    public boolean isSatisfied() {
+        return YourNetworkManager.isNetworkAvailable();
     }
+
+    @Override
+    public String getMessage() {
+        return isSatisfied() ? "Network is available" : "Cannot continue, no network";
+    }
+}
 ```
-Just implement the interface and add your class to the `RunPolicy`.
+Just implement the interface and add your `GatingCondition` class via `RunPolicy.Builder.withGatingCondition()`.
 
 ### Concurrency Policy
 
 A RunPolicy may have a [ConcurrencyPolicy](https://tsombrero.github.io/jobwrangler/apidocs/com/serfshack/jobwrangler/core/concurrencypolicy/AbstractConcurrencyPolicy.html) that governs how it coexists with other jobs with the same policy. This is how Singleton Jobs are enforced for example.
 
-ConcurrencyPolicy objects are identified by keys. A key is a list of one or more Strings. When a Job is submitted, its ConcurrencyPolicy is compared with that of other running Jobs. If another Job has a ConcurrencyPolicy with the same key the jobs are said to collide and there's an opportunity to resolve the conflict.
+When a Job is submitted, and before it is added, its ConcurrencyPolicy is compared with that of other running Jobs. If a running Job has a matching ConcurrencyPolicy the jobs are said to collide and the earlier job's ConcurrencyPolicy resolves the conflict. This may mean canceling one job or the other, setting up a dependency relationship, consolidating work into a single job, etc.
 
-There are three built-in `ConcurrencyPolicy`s:
+There are three built-in `ConcurrencyPolicy` implementations:
 ##### SingletonPolicyKeepExisting
-Only one job per matching policy may be running at a time. The running job has an opportunity to absorb any unique work from the duplicate job through its `assimilate()` method, and the duplicate job moves to a terminal `ASSIMILATED` state.
+Only one job per matching policy may be running at a time. The running job has an opportunity to absorb work from the duplicate job through its `assimilate()` method and the new job moves immediately to a terminal state without being added.
 ##### SingletonPolicyReplaceExisting
 Similar to the previous policy but the roles are reversed. In this case the incoming Job survives and the existing one is terminated.
 ##### FIFOPolicy
 Jobs with matching `FIFOPolicy`s run in order. Every earlier matching job must reach a terminal state (success or failure) before the next one can proceed.
 
+In the above example:
+```
+            .withConcurrencyPolicy(new FIFOPolicy("uploadphoto"))
+```
+ensures that photo uploads are handled sequentially and not in parallel. The string parameter `"uploadphoto"` is an arbitrary key value used to match against other `FIFOPolicy` instances.
+
 ## Job Dependencies
+
+
 
 ## Persistence
 
