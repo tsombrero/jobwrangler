@@ -3,7 +3,8 @@
 JobWrangler is a job execution library along the lines of the [iOS OperationQueue](https://developer.apple.com/documentation/foundation/operationqueue) and the excellent [Android Priority JobQueue](https://github.com/yigit/android-priority-jobqueue). JobWrangler builds upon the concept of the Job-as-a-state-machine with dynamic inter-job dependency chains and other handy orchestration features. For example, Jobs get the following for free, or with minimal configuration:
 - Limited retries and exponential backoff (see RunPolicy)
 - Defer work until gating conditions are met (e.g. network availability)
-- Dependency enforcement, strong or weak (see DependencyFailureStrategy)
+- Strong or weak dependency enforcement between jobs (see DependencyFailureStrategy)
+- Dynamic dependency between jobs
 - Singleton jobs (see ConcurrencyPolicy)
 - Throttled jobs that accumulate batches of work
 - Persisted jobs that survive application restart
@@ -104,16 +105,48 @@ Here's an example of a customized RunPolicy:
         }
 ```
 
+As you can see, the method returns a new RunPolicy for the Job to use. RunPolicy objects are created using a Builder pattern. See the [JavaDoc](https://tsombrero.github.io/jobwrangler/apidocs/com/serfshack/jobwrangler/core/RunPolicy.Builder.html) for details.
 
-a minute, what are `withConcurrencyPolicy(new FIFOPolicy("uploadphoto"))` and `withGatingCondition(new NetworkConnectivityCondition())` exactly?
+You may have noticed these guys:
+```java
+                    .withConcurrencyPolicy(new FIFOPolicy("uploadphoto"))
+                    .withGatingCondition(new NetworkConnectivityCondition())
+```
+A Job can have at most one `ConcurrencyPolicy` and zero or more `GatingCondition`s.
+
+### Gating Conditions
+
+A [GatingCondition](https://tsombrero.github.io/jobwrangler/apidocs/com/serfshack/jobwrangler/core/GatingCondition.html) is a
+way of temporarily benching a Job. The most obvious use case for this is network connectivity. Creating a GatingCondition is easy:
+
+```java
+    static class SimpleGatingCondition implements GatingCondition {
+        @Override
+        public boolean isSatisfied() {
+            return YourNetworkManager.isNetworkAvailable();
+        }
+
+        @Override
+        public String getMessage() {
+            return isSatisfied() ? "Network is available" : "Cannot continue, no network";
+        }
+    }
+```
+Just implement the interface and add your class to the `RunPolicy`.
 
 ### Concurrency Policy
 
+A RunPolicy may have a [ConcurrencyPolicy](https://tsombrero.github.io/jobwrangler/apidocs/com/serfshack/jobwrangler/core/concurrencypolicy/AbstractConcurrencyPolicy.html) that governs how it coexists with other jobs with the same policy. This is how Singleton Jobs are enforced for example.
 
-## Gating Conditions
+ConcurrencyPolicy objects are identified by keys. A key is a list of one or more Strings. When a Job is submitted, its ConcurrencyPolicy is compared with that of other running Jobs. If another Job has a ConcurrencyPolicy with the same key the jobs are said to collide and there's an opportunity to resolve the conflict.
 
-
-A RunPolicy can have one or more GatingConditions
+There are three built-in `ConcurrencyPolicy`s:
+##### SingletonPolicyKeepExisting
+Only one job per matching policy may be running at a time. The running job has an opportunity to absorb any unique work from the duplicate job through its `assimilate()` method, and the duplicate job moves to a terminal `ASSIMILATED` state.
+##### SingletonPolicyReplaceExisting
+Similar to the previous policy but the roles are reversed. In this case the incoming Job survives and the existing one is terminated.
+##### FIFOPolicy
+Jobs with matching `FIFOPolicy`s run in order. Every earlier matching job must reach a terminal state (success or failure) before the next one can proceed.
 
 ## Job Dependencies
 
