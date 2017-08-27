@@ -15,11 +15,9 @@ With all those hairy details taken care of you can focus on the bits that must b
 1. Perform the actual work
 1. Success/Failure handling
 
-## Example: A Photo Sharing Service
+## Example: A Basic Job
 
-Let's say you're implementing a client for photo sharing service. It's a very simple service consisting of photos organized into albums. You'll have a UI, some local storage, a way of communicating with the remote service. JobWrangler can help with the business logic to tie it all together. 
-
-Let's start with a basic job to upload a photo. Jobs are generics that take the result type. The result of this job will be a URI to the photo, so this will be a `Job<URI>`.
+Let's start with a basic job to upload a photo. Jobs are generics of their result type. The result of this job will be a URI to the uploaded photo, so this will be a `Job<URI>`.
 
 ### Upload Photo Job:
 
@@ -30,12 +28,11 @@ Let's start with a basic job to upload a photo. Jobs are generics that take the 
         public UploadPhotoJob(String photo) {
             this.photo = photo;
         }
-        
+
         @Override
         public State onAdded() {
-            // This callback happens immediately after the job has been successfully submitted
-            // It's a good place to update the UI
             System.out.println("Uploading the photo");
+            return State.READY;
         }
 
         @Override
@@ -48,22 +45,30 @@ Let's start with a basic job to upload a photo. Jobs are generics that take the 
                 setResult(photoUri);
                 return State.SUCCEEDED;
             }
-            
+
             // We did not succeed this time but willing to give it another go.
             return State.READY;
         }
     }
 ```
 
-That's about the bare minimum you need to create a job-- some implementation in `onAdded()` to update the application's state and `doWork()` to handle the heavy lifting. 
-
 To execute the job, you would do something like this:
 
 ```java
-// Note, in real life the JobManager should be a singleton
-JobManager jobManager = new JobManager();
-jobManager.submit(new UploadPhotoJob(thePhoto));
+    // Note, in real life the JobManager should be a singleton
+    JobManager jobManager = new JobManager();
+    jobManager.submit(new UploadPhotoJob(thePhoto));
 ```
+
+The first callback is `onAdded()` which means the Job has been submitted and accepted by the JobManager. This callback happens only once regardless of retries, so it's a good place to update the UI to reflect what's going on (e.g. show a progress bar, or show the added photo in a list).
+
+The second callback is `doWork()` which is where the long-running work of uploading the photo happens. This callback represents an attempt and may be retried if there's a problem.
+
+Jobs are state machines-- `onAdded()` and `doWork()` are state transition callbacks used by the JobManager to handle a particular state and transition to the next one. They optimistically return the next state for the Job. The returned state will be validated against other factors (retry limits etc) by the JobManager and applied.
+
+For more on Job state flow, see the Diagram below and the javadoc for the [Job class](https://tsombrero.github.io/jobwrangler/apidocs/com/serfshack/jobwrangler/core/Job.html) and [State enum](https://tsombrero.github.io/jobwrangler/apidocs/com/serfshack/jobwrangler/core/State.html)  
+<img width="300" src="https://github.com/tsombrero/jobwrangler/blob/master/docs/res/Screenshot%202017-08-26%2013.01.33.png" align="center">
+
 Now let's take a look at how to get the job's result.
 
 ## JobObserver
@@ -73,8 +78,8 @@ A Job's result can be fetched either with blocking calls or through a subscripti
 
 The blocking method:
 ```java
-JobObserver<URI> uploadPhotoObserver = jobManager.submit(new UploadPhotoJob(thePhoto));
-Photo photo = uploadPhotoObserver.getResultBlocking(30, TimeUnit.SECONDS);
+    JobObserver<URI> uploadPhotoObserver = jobManager.submit(new UploadPhotoJob(thePhoto));
+    Photo photo = uploadPhotoObserver.getResultBlocking(30, TimeUnit.SECONDS);
 ```
 The call to get the result will block until the Job terminates or until the specified timeout. 
 
@@ -89,23 +94,24 @@ uploadPhotoObserver.subscribeOnComplete(job1 -> System.out.println("The result i
 
 The default RunPolicy allows up to 5 attempts before the job fails. An attempt is defined as a call to `doWork()`. If any *non-terminal* state (that is, any state other than `FAULTED`, `SUCCEEDED`, and `CANCELED`) is returned from `doWork()`, an attempt is used and the job will try again after the configured retry delay (static or backoff). A Job's maximum age as well as the max age of individual attempts are configurable.
 
-When a Job is initialized it always calls `configureRunPolicy()` once so it knows how to behave.
-Here's an example of a customized RunPolicy:
+When a Job is initialized it always calls `configureRunPolicy()` once so it knows how to behave. The method simply returns a new RunPolicy for the Job to use.
+
+For example:
 
 ```java
-        @Override
-        protected RunPolicy configureRunPolicy() {
-            return RunPolicy.newLimitAttemptsPolicy(20)
-                    .withAttemptTimeout(30, TimeUnit.SECONDS)
-                    .withJobTimeout(3, TimeUnit.MINUTES)
-                    .withExponentialBackoff(1, 10, TimeUnit.SECONDS)
-                    .withConcurrencyPolicy(new FIFOPolicy("uploadphoto"))
-                    .withGatingCondition(new NetworkConnectivityCondition())
-                    .build();
-        }
+    @Override
+    protected RunPolicy configureRunPolicy() {
+        return RunPolicy.newLimitAttemptsPolicy(20)
+                .withAttemptTimeout(30, TimeUnit.SECONDS)
+                .withJobTimeout(3, TimeUnit.MINUTES)
+                .withExponentialBackoff(1, 10, TimeUnit.SECONDS)
+                .withConcurrencyPolicy(new FIFOPolicy("uploadphoto"))
+                .withGatingCondition(new NetworkConnectivityCondition())
+                .build();
+    }
 ```
 
-As you can see, the method returns a new RunPolicy for the Job to use. RunPolicy objects are created using a Builder pattern. See the [JavaDoc](https://tsombrero.github.io/jobwrangler/apidocs/com/serfshack/jobwrangler/core/RunPolicy.Builder.html) for details.
+RunPolicy objects are created using a Builder pattern. See the [JavaDoc](https://tsombrero.github.io/jobwrangler/apidocs/com/serfshack/jobwrangler/core/RunPolicy.Builder.html) for details.
 
 You may have noticed these guys:
 ```java
