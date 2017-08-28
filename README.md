@@ -14,7 +14,7 @@ JobWrangler is a job execution library along the lines of the [iOS OperationQueu
 With all those hairy details taken care of you can focus on the bits that must be explicitly implemented:
 
 1. Update the local model as needed to reflect the action taking place (e.g. update the UI as if the Job has already succeeded)
-1. Perform the actual work
+1. Perform the actual work... post a tweet, tag a photo, 
 1. Success/Failure handling
 
 ## Example: A Basic Job
@@ -154,7 +154,7 @@ Similar to the previous policy but the roles are reversed. In this case the inco
 ##### FIFOPolicy
 Jobs with matching `FIFOPolicy`s run in order. Every earlier matching job must reach a terminal state (success or failure) before the next one can proceed.
 
-In the above example:
+In the above example, this line:
 ```
             .withConcurrencyPolicy(new FIFOPolicy("uploadphoto"))
 ```
