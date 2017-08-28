@@ -79,7 +79,8 @@ A Job's result can be fetched either with blocking calls or through a subscripti
 The blocking method:
 ```java
 JobObserver<URI> uploadPhotoObserver = jobManager.submit(new UploadPhotoJob(thePhoto));
-Photo photo = uploadPhotoObserver.getResultBlocking(30, TimeUnit.SECONDS);
+URI photo = uploadPhotoObserver.getResultBlocking(30, TimeUnit.SECONDS);
+System.out.println("The result is: " + photo)
 ```
 The call to get the result will block until the Job terminates or until the specified timeout. 
 
