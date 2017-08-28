@@ -69,7 +69,7 @@ The second callback is `doWork()` which is where the long-running work of upload
 Jobs are state machines-- `onAdded()` and `doWork()` are state transition callbacks used by the JobManager to handle a particular state and transition to the next one. They optimistically return the next state for the Job. The returned state will be validated against other factors (retry limits etc) by the JobManager and applied. If a state transition callback returns a terminal state like `SUCCESS` or `FAULTED`, the job will move to that terminal state.
 
 For more on Job state flow, see the Diagram below and the javadoc for the [Job class](https://tsombrero.github.io/jobwrangler/apidocs/com/serfshack/jobwrangler/core/Job.html) and [State enum](https://tsombrero.github.io/jobwrangler/apidocs/com/serfshack/jobwrangler/core/State.html)  
-<img width="300" src="https://github.com/tsombrero/jobwrangler/blob/master/docs/res/Screenshot%202017-08-26%2013.01.33.png" align="center">
+<img width="300" src="https://github.com/tsombrero/jobwrangler/blob/master/docs/res/stateflow.png" align="center">
 
 ## JobObserver
 The `JobObserver` is how you keep track of ongoing jobs and get results when they're finished. `JobObserver` is a generic class of the same type as the `Job` it is observing. In this example `UploadPhotoJob extends Job<URI>` so the JobObserver is a `JobObserver<URI>`.

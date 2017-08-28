@@ -1,7 +1,8 @@
 package com.serfshack.jobwrangler.core;
 
 /**
- * State for Jobs
+ * State Flow Diagram:
+ * https://github.com/tsombrero/jobwrangler/blob/master/docs/res/stateflow.png
  */
 public enum State {
     /**
