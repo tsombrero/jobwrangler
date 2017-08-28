@@ -75,6 +75,11 @@ public class ServiceJobTask implements Runnable {
         if (state == State.READY)
             state = State.WAIT;
 
+        if (state == State.NEW) {
+            job.setState(State.FAULTED, "Cannot set state to NEW");
+            return;
+        }
+
         job.setState(state);
 
         // Give existing jobs a chance to react to the new job
