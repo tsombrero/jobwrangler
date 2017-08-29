@@ -2,7 +2,7 @@
 
 [JavaDoc](https://tsombrero.github.io/jobwrangler/apidocs/).
 
-JobWrangler is a job execution library along the lines of the [iOS OperationQueue](https://developer.apple.com/documentation/foundation/operationqueue) and the excellent [Android Priority JobQueue](https://github.com/yigit/android-priority-jobqueue). JobWrangler builds upon the concept of the Job-as-a-state-machine with dynamic inter-job dependency chains and other handy orchestration features. For example, Jobs get the following for free, or with minimal configuration:
+JobWrangler is a job execution library along the lines of the [iOS OperationQueue](https://developer.apple.com/documentation/foundation/operationqueue) and the excellent [Android Priority JobQueue](https://github.com/yigit/android-priority-jobqueue). JobWrangler builds upon the concept of the Job-as-a-state-machine with dynamic inter-job dependency chains and other handy orchestration features. Jobs get the following for free, or with minimal configuration:
 - Limited retries and exponential backoff (see RunPolicy)
 - Defer work until gating conditions are met (e.g. network availability)
 - Strong or weak dependency enforcement between jobs (see DependencyFailureStrategy)
@@ -49,7 +49,7 @@ public static class UploadPhotoJob extends Job<URI> {
         }
 
         // We did not succeed this time but willing to give it another go.
-        return State.READY;
+        return State.WAIT;
     }
 }
 ```
@@ -57,26 +57,26 @@ public static class UploadPhotoJob extends Job<URI> {
 To execute the job, you would do something like this:
 
 ```java
-// Note, in real life the JobManager should be a singleton
+// In real life the JobManager should be a singleton
 JobManager jobManager = new JobManager();
 jobManager.submit(new UploadPhotoJob(thePhoto));
 ```
 
-The first callback is `onAdded()` which means the Job has been submitted and accepted by the JobManager. This callback happens only once regardless of retries, so it's a good place to update the UI to reflect what's going on (e.g. show a progress bar, or show the added photo in a list).
+The first callback is `onAdded()` which happens once the Job has been submitted and accepted by the JobManager. This callback happens only once regardless of retries, so it's a good place to update the UI to reflect what's going on (e.g. show a progress bar, or show the added photo in a list).
 
 The second callback is `doWork()` which is where the long-running work of uploading the photo happens. This callback represents an attempt and may be retried if there's a problem.
 
-Jobs are state machines-- `onAdded()` and `doWork()` are state transition callbacks used by the JobManager to handle a particular state and transition to the next one. They optimistically return the next state for the Job. The returned state will be validated against other factors (retry limits etc) by the JobManager and applied. If a state transition callback returns a terminal state like `SUCCESS` or `FAULTED`, the job will move to that terminal state.
+Jobs are state machines-- `onAdded()` and `doWork()` are state transition callbacks used by the JobManager to handle a particular state and transition to the next one. They optimistically return the next state for the Job. The returned state will be validated against other factors (retry limits etc) by the JobManager and applied. If a state transition callback returns a terminal state like `SUCCEEDED` or `FAULTED`, the job will move to that terminal state and be done.
 
 For more on Job state flow, see the Diagram below and the javadoc for the [Job class](https://tsombrero.github.io/jobwrangler/apidocs/com/serfshack/jobwrangler/core/Job.html) and [State enum](https://tsombrero.github.io/jobwrangler/apidocs/com/serfshack/jobwrangler/core/State.html)  
-<img width="300" src="https://github.com/tsombrero/jobwrangler/blob/master/docs/res/stateflow.png" align="center">
+<img width="400" src="https://github.com/tsombrero/jobwrangler/blob/master/docs/res/stateflow.png" align="center">
 
 ## JobObserver
 The `JobObserver` is how you keep track of ongoing jobs and get results when they're finished. `JobObserver` is a generic class of the same type as the `Job` it is observing. In this example `UploadPhotoJob extends Job<URI>` so the JobObserver is a `JobObserver<URI>`.
 
 A Job's result can be fetched either with blocking calls or through a subscription model.
 
-The blocking method:
+##### Getting the Job Result, blocking method:
 ```java
 JobObserver<URI> uploadPhotoObserver = jobManager.submit(new UploadPhotoJob(thePhoto));
 URI photo = uploadPhotoObserver.getResultBlocking(30, TimeUnit.SECONDS);
@@ -84,7 +84,7 @@ System.out.println("The result is: " + photo)
 ```
 The call to get the result will block until the Job terminates or until the specified timeout. 
 
-The subscription method:
+##### Getting the Job Result, subscription method
 ```java
 JobObserver<URI> uploadPhotoObserver = jobManager.submit(new UploadPhotoJob(thePhoto));
 uploadPhotoObserver.subscribeOnComplete(job1 -> System.out.println("The result is: " + job1.getResult()));
@@ -93,9 +93,9 @@ uploadPhotoObserver.subscribeOnComplete(job1 -> System.out.println("The result i
 
 ## Run Policy
 
-The default RunPolicy allows up to 5 attempts before the job fails. An attempt is defined as a call to `doWork()`. If any *non-terminal* state (that is, any state other than `FAULTED`, `SUCCEEDED`, and `CANCELED`) is returned from `doWork()`, an attempt is used and the job will try again after the configured retry delay (static or backoff). A Job's maximum age as well as the max age of individual attempts are configurable.
+Every Job has a `RunPolicy` to manage its lifecycle. The default RunPolicy allows up to 5 attempts before the job fails. An attempt is defined as a call to `doWork()`. If `doWork()` returns `READY` or `WAIT`, an attempt is used and the job will try again after the configured retry delay (static or backoff). A Job's maximum age as well as the max age of individual attempts are configurable.
 
-When a Job is initialized it always calls `configureRunPolicy()` once so it knows how to behave. The method simply returns a new RunPolicy for the Job to use.
+The default RunPolicy is sane but likely not ideal for every situation. In general, jobs should implement `configureRunPolicy()` and return one designed for the Job. 
 
 For example:
 
@@ -112,22 +112,22 @@ protected RunPolicy configureRunPolicy() {
 }
 ```
 
-RunPolicy objects are created using a Builder pattern. In this case we start with a canned `RunPolicy.Builder` via [newLimitAttemptsPolicy](https://tsombrero.github.io/jobwrangler/apidocs/com/serfshack/jobwrangler/core/RunPolicy.html#newLimitAttemptsPolicy-int-) and build upon it. See the [JavaDoc](https://tsombrero.github.io/jobwrangler/apidocs/com/serfshack/jobwrangler/core/RunPolicy.Builder.html) for details.
+RunPolicy objects are created using a Builder pattern. In this case we start with a canned [RunPolicy.Builder](https://tsombrero.github.io/jobwrangler/apidocs/com/serfshack/jobwrangler/core/RunPolicy.Builder.html) via [newLimitAttemptsPolicy](https://tsombrero.github.io/jobwrangler/apidocs/com/serfshack/jobwrangler/core/RunPolicy.html#newLimitAttemptsPolicy-int-) and build upon it. 
 
 You may have noticed these guys:
 ```java
             .withConcurrencyPolicy(new FIFOPolicy("uploadphoto"))
             .withGatingCondition(new NetworkConnectivityCondition())
 ```
-A Job can have at most one `ConcurrencyPolicy` and zero or more `GatingCondition`s.
+A Job can have at most one `ConcurrencyPolicy` and zero or more `GatingCondition` objects.
 
 ### Gating Conditions
 
 A [GatingCondition](https://tsombrero.github.io/jobwrangler/apidocs/com/serfshack/jobwrangler/core/GatingCondition.html) is a
-way of temporarily benching a Job. The most obvious use case for this is to avoid churn while waiting for network connectivity. Creating a GatingCondition is easy:
+way of keeping a Job in the WAIT state. No work will be attempted until the conditions are satisfied. The most obvious use case for this is to avoid churn while waiting for network connectivity. Creating a GatingCondition is easy:
 
 ```java
-static class SimpleGatingCondition implements GatingCondition {
+static class NetworkConnectivityCondition implements GatingCondition {
     @Override
     public boolean isSatisfied() {
         return YourNetworkManager.isNetworkAvailable();
@@ -139,13 +139,13 @@ static class SimpleGatingCondition implements GatingCondition {
     }
 }
 ```
-Just implement the interface and add your `GatingCondition` class via `RunPolicy.Builder.withGatingCondition()`. The Job will remain in the `WAIT` state without burning any retry attempts until the condition is satisfied.
+Just implement the interface and add your `GatingCondition` class via `RunPolicy.Builder.withGatingCondition()`. The Job will remain in the `WAIT` state without burning any retry attempts until the condition is satisfied or until the Job times out. The condition is checked on a backoff schedule maxing out at once per 10 seconds.
 
 ### Concurrency Policy
 
 A RunPolicy may have a [ConcurrencyPolicy](https://tsombrero.github.io/jobwrangler/apidocs/com/serfshack/jobwrangler/core/concurrencypolicy/AbstractConcurrencyPolicy.html) that governs how it coexists with other jobs with the same policy. This is how Singleton Jobs are enforced for example.
 
-When a Job is submitted, and before it is added, its ConcurrencyPolicy is compared with that of other running Jobs. If a running Job has a matching ConcurrencyPolicy the jobs are said to collide and the running job's ConcurrencyPolicy resolves the conflict. This may mean canceling either job, setting up a dependency relationship, consolidating work into a single job, or something else.
+When a Job is submitted, and before it is added, its ConcurrencyPolicy is compared with that of other running Jobs. If a running Job has a matching ConcurrencyPolicy the jobs are said to "collide" and the running job's ConcurrencyPolicy resolves any conflict. This may include canceling either job, setting up a dependency relationship, consolidating work into a single job, or something else.
 
 There are three built-in `ConcurrencyPolicy` implementations:
 ##### SingletonPolicyKeepExisting
