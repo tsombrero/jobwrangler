@@ -69,10 +69,10 @@ The second callback is `doWork()` which is where the long-running work of upload
 Jobs are state machines-- `onAdded()` and `doWork()` are state transition callbacks used by the JobManager to handle a particular state and transition to the next one. They optimistically return the next state for the Job. The returned state will be validated against other factors (retry limits etc) by the JobManager and applied. If a state transition callback returns a terminal state like `SUCCEEDED` or `FAULTED`, the job will move to that terminal state and be done.
 
 For more on Job state flow, see the Diagram below and the javadoc for the [Job class](https://tsombrero.github.io/jobwrangler/apidocs/com/serfshack/jobwrangler/core/Job.html) and [State enum](https://tsombrero.github.io/jobwrangler/apidocs/com/serfshack/jobwrangler/core/State.html)  
-<img width="400" src="https://github.com/tsombrero/jobwrangler/blob/master/docs/res/stateflow.png" align="center">
+<img width="600" src="https://github.com/tsombrero/jobwrangler/blob/master/docs/res/stateflow.png" align="center">
 
 ## JobObserver
-The `JobObserver` is how you keep track of ongoing jobs and get results when they're finished. `JobObserver` is a generic class of the same type as the `Job` it is observing. In this example `UploadPhotoJob extends Job<URI>` so the JobObserver is a `JobObserver<URI>`.
+The [JobObserver](https://tsombrero.github.io/jobwrangler/apidocs/com/serfshack/jobwrangler/core/JobObserver.html) is how you keep track of ongoing jobs and get results when they're finished. `JobObserver` is a generic class of the same type as the `Job` it is observing. In this example `UploadPhotoJob extends Job<URI>` so the JobObserver is a `JobObserver<URI>`. Each `Job` has exactly one `JobObserver` and each `JobObserver` observes exactly one `Job`.
 
 A Job's result can be fetched either with blocking calls or through a subscription model.
 
@@ -93,7 +93,7 @@ uploadPhotoObserver.subscribeOnComplete(job1 -> System.out.println("The result i
 
 ## Run Policy
 
-Every Job has a `RunPolicy` to manage its lifecycle. The default RunPolicy allows up to 5 attempts before the job fails. An attempt is defined as a call to `doWork()`. If `doWork()` returns `READY` or `WAIT`, an attempt is used and the job will try again after the configured retry delay (static or backoff). A Job's maximum age as well as the max age of individual attempts are configurable.
+Every Job has a [RunPolicy](https://tsombrero.github.io/jobwrangler/apidocs/com/serfshack/jobwrangler/core/RunPolicy.html) to manage its lifecycle. The default RunPolicy allows up to 5 attempts before the job fails. An attempt is defined as a call to [doWork()](https://tsombrero.github.io/jobwrangler/apidocs/com/serfshack/jobwrangler/core/Job.html#doWork--). If `doWork()` returns `READY` or `WAIT`, an attempt is used and the job will try again after the configured retry delay (static or backoff). A Job's maximum age as well as the max age of individual attempts are configurable.
 
 The default RunPolicy is sane but likely not ideal for every situation. In general, jobs should implement `configureRunPolicy()` and return one designed for the Job. 
 
@@ -145,7 +145,7 @@ Just implement the interface and add your `GatingCondition` class via `RunPolicy
 
 A RunPolicy may have a [ConcurrencyPolicy](https://tsombrero.github.io/jobwrangler/apidocs/com/serfshack/jobwrangler/core/concurrencypolicy/AbstractConcurrencyPolicy.html) that governs how it coexists with other jobs with the same policy. This is how Singleton Jobs are enforced for example.
 
-When a Job is submitted, and before it is added, its ConcurrencyPolicy is compared with that of other running Jobs. If a running Job has a matching ConcurrencyPolicy the jobs are said to "collide" and the running job's ConcurrencyPolicy resolves any conflict. This may include canceling either job, setting up a dependency relationship, consolidating work into a single job, or something else.
+When a Job is submitted, and before it is added, its ConcurrencyPolicy is compared with that of other running Jobs. If a running Job has a matching ConcurrencyPolicy the jobs are said to "collide" and the running job's ConcurrencyPolicy resolves any conflict in its [onCollision()](https://tsombrero.github.io/jobwrangler/apidocs/com/serfshack/jobwrangler/core/concurrencypolicy/AbstractConcurrencyPolicy.html#onCollision-com.serfshack.jobwrangler.core.Job-com.serfshack.jobwrangler.core.Job-) implementation. This may include canceling either job, setting up a dependency relationship, consolidating work into a single job, or something else.
 
 There are three built-in `ConcurrencyPolicy` implementations:
 ##### SingletonPolicyKeepExisting
@@ -163,7 +163,6 @@ ensures that photo uploads are handled sequentially and not in parallel. The str
 
 ## Job Dependencies
 
+A job may depend on any number of other jobs, which allows fairly complex dependency graphs to be created. A dependency relationship is created by calling [addDepended()](https://tsombrero.github.io/jobwrangler/apidocs/com/serfshack/jobwrangler/core/Job.html#addDepended-com.serfshack.jobwrangler.core.Dependable-com.serfshack.jobwrangler.core.Dependable.DependencyFailureStrategy-). You can specify a strong or weak dependency by passing [CASCADE_FAILURE or IGNORE_FAILURE](https://tsombrero.github.io/jobwrangler/apidocs/com/serfshack/jobwrangler/core/Dependable.DependencyFailureStrategy.html#CASCADE_FAILURE) to `addDepended()`. If a depended job moves to a `FAULTED` or `CANCELED` state, any strongly-depending jobs will immediately move to `FAULTED`.
 
-
-## Persistence
-
+A submitted job's dependencies must likewise be submitted to the JobManager; `addDepended()` will throw an `IllegalStateException` if the JobManager is not aware of the depended job.
