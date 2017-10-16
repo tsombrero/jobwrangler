@@ -131,8 +131,8 @@ public class PhotoServiceTest {
 
     @Test
     public void testFlakyJobs() {
-        int photoCount = 100;
-        int numAlbums = 50;
+        int photoCount = 10;
+        int numAlbums = 10;
 
         FLAKE_FACTOR = 0.01f;
 

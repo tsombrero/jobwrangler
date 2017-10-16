@@ -171,7 +171,7 @@ public abstract class Job<T> extends Dependable {
                 }
             }
 
-            cycleCheck(jobManager);
+            cycleCheck();
 
             setJobManager(jobManager);
         } finally {
@@ -353,7 +353,8 @@ public abstract class Job<T> extends Dependable {
 
                 if (isInitialized() && !oldState.isTerminal() && newState == State.FAULTED) {
                     for (Job otherjob : getJobManager().getJobs()) {
-                        if (otherjob.getDependingMode(getId()) == DependencyFailureStrategy.CASCADE_FAILURE) {
+                        DependencyFailureStrategy dependingMode = otherjob.getDependingMode(Job.this);
+                        if (dependingMode == DependencyFailureStrategy.CASCADE_FAILURE) {
                             otherjob.setState(otherjob.onDependencyFailed(Job.this), getDependencyFaultMessage(Job.this));
                         }
                     }

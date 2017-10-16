@@ -18,10 +18,10 @@ public class PriorityJobComparator implements java.util.Comparator<Job> {
         if (j2.getState().isTerminal())
             return -1;
 
-        if (j1.getDependingMode(j2.getId()) != null)
+        if (j1.getDependingMode(j2) != null)
             return 1;
 
-        if (j2.getDependingMode(j1.getId()) != null)
+        if (j2.getDependingMode(j1) != null)
             return -1;
 
         if (j1.getState() == State.NEW && j2.getState() != State.NEW)

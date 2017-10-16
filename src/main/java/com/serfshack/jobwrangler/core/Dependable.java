@@ -23,7 +23,7 @@ public abstract class Dependable {
         this.id = id;
     }
 
-    public static enum DependencyFailureStrategy {
+    public enum DependencyFailureStrategy {
         CASCADE_FAILURE, IGNORE_FAILURE
     }
 
@@ -70,21 +70,11 @@ public abstract class Dependable {
     /**
      * Remove a dependency
      *
-     * @param dependableId ID of the depended Dependable
+     * @param dependable The depended Dependable
      * @return true if something was removed
      */
-    public final boolean removeDepended(DependableId dependableId) {
-        return dependedDependables.remove(dependableId) != null;
-    }
-
-    /**
-     * Check to see if this Dependable depends directly on another one
-     *
-     * @param id ID of the possible dependency
-     * @return one of DependencyFailureStrategy if this Dependable depends directly on ID, or null
-     */
-    public final DependencyFailureStrategy getDependingMode(DependableId id) {
-        return dependedDependables.get(id);
+    public final boolean removeDepended(Dependable dependable) {
+        return dependedDependables.remove(dependable) != null;
     }
 
     /**
@@ -94,7 +84,7 @@ public abstract class Dependable {
      * @return one of DependencyFailureStrategy if this Dependable depends directly on ID, or null
      */
     public final DependencyFailureStrategy getDependingMode(Dependable dependable) {
-        return getDependingMode(dependable.getId());
+        return dependedDependables.get(dependable);
     }
 
     /**
@@ -112,37 +102,27 @@ public abstract class Dependable {
         return getClass().getSimpleName();
     }
 
-    final void cycleCheck() {
-        cycleCheck(jobManager);
-    }
-
     /**
      * Check the state of the dependency graph looking for cycles.
-     *
-     * @param jobManager JobManager for context
-     * @throws DependencyCycleException
      */
-    final void cycleCheck(JobManager jobManager) {
+    final void cycleCheck() throws DependencyCycleException {
         lock.lock();
         try {
-            if (jobManager == null)
-                return;
-
             for (Dependable dependable : dependedDependables.keySet()) {
-                cycleCheck(dependable, jobManager);
+                cycleCheck(dependable);
             }
         } finally {
             lock.unlock();
         }
     }
 
-    private void cycleCheck(Dependable depended, JobManager jobManager) {
+    private void cycleCheck(Dependable depended) throws DependencyCycleException {
         if (depended != null) {
             if (depended.getDependingMode(this) != null)
                 throw new DependencyCycleException(this, depended);
 
             for (Dependable indirectDepended : depended.getDependedDependables().keySet()) {
-                cycleCheck(indirectDepended, jobManager);
+                cycleCheck(indirectDepended);
             }
         }
     }
@@ -178,7 +158,7 @@ public abstract class Dependable {
     }
 
     public static class DependencyException extends RuntimeException {
-        public DependencyException(String s) {
+        DependencyException(String s) {
             super(s);
         }
     }
@@ -238,7 +218,7 @@ public abstract class Dependable {
                 dependedDependables.put(depended, inheritFailure);
                 cycleCheck();
             } catch (DependencyCycleException e) {
-                dependedDependables.remove(dependedId);
+                dependedDependables.remove(depended);
                 Log.w(e, "Failed setting " + this + " depends on " + depended);
                 throw e;
             }
