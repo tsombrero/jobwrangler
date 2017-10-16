@@ -7,7 +7,7 @@ import java.util.List;
 public interface Persistor {
     List<Job> getJobs();
 
-    void putJob(Job job);
+    void putJob(PersistableJob job);
 
     void removeJob(Job.JobId jobId);
 

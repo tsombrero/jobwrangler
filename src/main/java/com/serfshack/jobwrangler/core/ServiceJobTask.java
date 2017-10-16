@@ -3,16 +3,17 @@ package com.serfshack.jobwrangler.core;
 import com.serfshack.jobwrangler.util.Log;
 
 import java.util.ArrayList;
+import java.util.List;
 
 public class ServiceJobTask implements Runnable {
 
-    private final Job job;
+    private final Job<?> job;
 
     static long DEFAULT_POLL_INTERVAL = 200;
 
     ArrayList<Job> jobsToServiceImmediately = new ArrayList<>();
 
-    ServiceJobTask(Job job) {
+    ServiceJobTask(Job<?> job) {
         if (job.getJobManager() == null)
             throw new IllegalStateException("Job not initialized");
 
@@ -69,6 +70,14 @@ public class ServiceJobTask implements Runnable {
             return;
 
         job.cycleCheck();
+
+        for (Job dependedJob : job.getDependedJobs()) {
+            if (dependedJob.getState() == State.NEW) {
+                new ServiceJobTask(dependedJob).run();
+                if (dependedJob.getState() == State.NEW)
+                    throw new Dependable.DependencyException("Failed enqueueing depended job " + dependedJob);
+            }
+        }
 
         State state = job.doAdd();
 

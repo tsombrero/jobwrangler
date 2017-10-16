@@ -55,8 +55,8 @@ public abstract class Job<T> extends Dependable {
         return getDependedDependables().containsKey(dependable);
     }
 
-    ArrayList<Job> getDependedJobs() {
-        ArrayList<Job> jobs = new ArrayList<>();
+    List<Job<?>> getDependedJobs() {
+        ArrayList<Job<?>> jobs = new ArrayList<>();
         for (Dependable dependedJob : getDependedDependables().keySet()) {
             if (dependedJob instanceof Job) {
                 jobs.add((Job) dependedJob);

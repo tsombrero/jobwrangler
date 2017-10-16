@@ -1,5 +1,6 @@
 package com.serfshack.jobwrangler.core;
 
+import com.serfshack.jobwrangler.core.persist.PersistableJob;
 import com.serfshack.jobwrangler.core.persist.Persistor;
 import com.serfshack.jobwrangler.core.concurrencypolicy.AbstractConcurrencyPolicy;
 import com.serfshack.jobwrangler.util.Log;
@@ -152,8 +153,8 @@ public class JobManager {
             if (job.isRemovable()) {
                 persistor.removeJob((Job.JobId) job.getId());
             } else {
-                if (job.isDirty()) {
-                    persistor.putJob(job);
+                if (job instanceof PersistableJob && job.isDirty()) {
+                    persistor.putJob((PersistableJob) job);
                 }
             }
 
